@@ -44,9 +44,10 @@
     <ul id="scoreList"></ul>
   </div>
 
+  <!-- ✅ Socket.IO and Game Logic -->
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script>
-    const socket = io('https://typo-royale-server.onrender.com'); // Replace with your actual Render URL
+    const socket = io('https://typo-royale-server.onrender.com'); // Replace with your actual backend URL
     let roomId = '';
     let sentence = '';
     let startTime = null;
@@ -115,3 +116,31 @@
       list.innerHTML = '';
       players.forEach(p => {
         const li = document.createElement('li');
+        li.textContent = `${p.name || p.id}: ${p.score}`;
+        list.appendChild(li);
+      });
+    });
+
+    socket.on('nextRound', ({ sentence: text, round, total }) => {
+      sentence = text;
+      currentRound = round;
+      totalRounds = total;
+      document.getElementById('roundInfo').textContent = `Round ${round} of ${total}`;
+      document.getElementById('sentence').textContent = sentence;
+      document.getElementById('typingInput').value = '';
+      startTime = Date.now();
+      show('game');
+    });
+
+    function generateRoomCode() {
+      return Math.random().toString(36).substring(2, 7).toUpperCase();
+    }
+
+    function show(section) {
+      ['setup', 'lobby', 'game', 'scores'].forEach(id => {
+        document.getElementById(id).style.display = id === section ? 'block' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>
