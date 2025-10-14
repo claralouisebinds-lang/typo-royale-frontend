@@ -24,13 +24,15 @@
     <h2>Room: <span id="roomCode"></span></h2>
     <p>Players:</p>
     <ul id="playerList"></ul>
-    <label for="roundSelect">Rounds:</label>
-    <select id="roundSelect">
-      <option value="1">1</option>
-      <option value="3">3</option>
-      <option value="5">5</option>
-    </select>
-    <button onclick="startGame()">Start Game</button>
+    <div id="roundControls">
+      <label for="roundSelect">Rounds:</label>
+      <select id="roundSelect">
+        <option value="1">1</option>
+        <option value="3">3</option>
+        <option value="5">5</option>
+      </select>
+      <button onclick="startGame()">Start Game</button>
+    </div>
   </div>
 
   <div id="game">
@@ -44,7 +46,6 @@
     <ul id="scoreList"></ul>
   </div>
 
-  <!-- ✅ Socket.IO and Game Logic -->
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script>
     const socket = io('https://typo-royale-server.onrender.com'); // Replace with your actual backend URL
@@ -54,11 +55,13 @@
     let playerName = '';
     let currentRound = 1;
     let totalRounds = 1;
+    let isHost = false;
 
     function createRoom() {
       playerName = document.getElementById('nameInput').value.trim();
       if (!playerName) return alert("Please enter your name");
       roomId = generateRoomCode();
+      isHost = true;
       document.getElementById('roomCode').textContent = roomId;
       socket.emit('createRoom', roomId);
       socket.emit('joinRoom', roomId, playerName);
@@ -69,6 +72,7 @@
       playerName = document.getElementById('nameInput').value.trim();
       if (!playerName) return alert("Please enter your name");
       roomId = document.getElementById('roomInput').value.toUpperCase();
+      isHost = false;
       document.getElementById('roomCode').textContent = roomId;
       socket.emit('joinRoom', roomId, playerName);
       show('lobby');
@@ -140,6 +144,12 @@
       ['setup', 'lobby', 'game', 'scores'].forEach(id => {
         document.getElementById(id).style.display = id === section ? 'block' : 'none';
       });
+
+      // ✅ Show round controls only for host
+      const roundControls = document.getElementById('roundControls');
+      if (section === 'lobby') {
+        roundControls.style.display = isHost ? 'block' : 'none';
+      }
     }
   </script>
 </body>
