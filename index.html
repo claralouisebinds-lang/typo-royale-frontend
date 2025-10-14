@@ -8,6 +8,43 @@
     #lobby, #game, #scores { margin-top: 2rem; display: none; }
     input, button, select { padding: 0.5rem; margin: 0.5rem; }
     #sentence { font-size: 1.2rem; margin: 1rem 0; }
+
+    /* ⏳ Sandclock styles */
+    #timer {
+      width: 80px;
+      height: 120px;
+      margin: 1rem auto;
+      position: relative;
+      background: url('https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Hourglass_icon.svg/120px-Hourglass_icon.svg.png') no-repeat center;
+      background-size: contain;
+      animation: flip 1s steps(1) infinite;
+    }
+
+    @keyframes flip {
+      0% { transform: rotate(0deg); }
+      50% { transform: rotate(180deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    #timeText {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .explode {
+      animation: explode 0.5s ease-out forwards;
+    }
+
+    @keyframes explode {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.5); opacity: 0.5; }
+      100% { transform: scale(0); opacity: 0; }
+    }
   </style>
 </head>
 <body>
@@ -37,6 +74,7 @@
 
   <div id="game">
     <div id="roundInfo"></div>
+    <div id="timer"><div id="timeText">60s</div></div>
     <div id="sentence"></div>
     <input id="typingInput" placeholder="Type here..." oninput="checkInput()" />
   </div>
@@ -46,9 +84,13 @@
     <ul id="scoreList"></ul>
   </div>
 
+  <!-- 🔊 Sound Effects -->
+  <audio id="clockSound" src="sounds/clock.mp3"></audio>
+  <audio id="boomSound" src="sounds/boom.mp3"></audio>
+
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script>
-    const socket = io('https://typo-royale-server.onrender.com'); // Replace with your actual backend URL
+    const socket = io('https://typo-royale-server.onrender.com'); // Replace with your backend URL
     let roomId = '';
     let sentence = '';
     let startTime = null;
@@ -56,6 +98,8 @@
     let currentRound = 1;
     let totalRounds = 1;
     let isHost = false;
+    let countdown = null;
+    let timeLeft = 0;
 
     function createRoom() {
       playerName = document.getElementById('nameInput').value.trim();
@@ -94,47 +138,72 @@
       });
     });
 
-    socket.on('gameStarted', ({ sentence: text, round, total }) => {
+    socket.on('gameStarted', ({ sentence, round, total }) => {
+      startRound(sentence, round, total);
+    });
+
+    socket.on('nextRound', ({ sentence, round, total }) => {
+      startRound(sentence, round, total);
+    });
+
+    function startRound(text, round, total) {
       sentence = text;
       currentRound = round;
       totalRounds = total;
       document.getElementById('roundInfo').textContent = `Round ${round} of ${total}`;
       document.getElementById('sentence').textContent = sentence;
       document.getElementById('typingInput').value = '';
+      document.getElementById('timer').classList.remove('explode');
       startTime = Date.now();
+
+      timeLeft = 10 + round * 10;
+      updateTimer();
+
+      clearInterval(countdown);
+      countdown = setInterval(() => {
+        timeLeft--;
+        updateTimer();
+
+        // 🔊 Clock ticking sound
+        const tick = document.getElementById('clockSound');
+        tick.volume = Math.min(1, 1 - timeLeft / (10 + round * 10));
+        tick.currentTime = 0;
+        tick.play();
+
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+
+          // 💥 Boom sound and animation
+          const boom = document.getElementById('boomSound');
+          boom.volume = 1;
+          boom.currentTime = 0;
+          boom.play();
+          document.getElementById('timer').classList.add('explode');
+
+          setTimeout(() => {
+            socket.emit('submitScore', { roomId, score: 0 });
+            show('scores');
+          }, 1000);
+        }
+      }, 1000);
+
       show('game');
-    });
+    }
+
+    function updateTimer() {
+      document.getElementById('timeText').textContent = `${timeLeft}s`;
+    }
 
     function checkInput() {
       const input = document.getElementById('typingInput').value;
       if (input === sentence) {
+        clearInterval(countdown);
         const timeTaken = (Date.now() - startTime) / 1000;
         const score = Math.round(1000 / timeTaken);
         socket.emit('submitScore', { roomId, score });
         show('scores');
       }
     }
-
-    socket.on('scoreUpdate', (players) => {
-      const list = document.getElementById('scoreList');
-      list.innerHTML = '';
-      players.forEach(p => {
-        const li = document.createElement('li');
-        li.textContent = `${p.name || p.id}: ${p.score}`;
-        list.appendChild(li);
-      });
-    });
-
-    socket.on('nextRound', ({ sentence: text, round, total }) => {
-      sentence = text;
-      currentRound = round;
-      totalRounds = total;
-      document.getElementById('roundInfo').textContent = `Round ${round} of ${total}`;
-      document.getElementById('sentence').textContent = sentence;
-      document.getElementById('typingInput').value = '';
-      startTime = Date.now();
-      show('game');
-    });
 
     function generateRoomCode() {
       return Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -145,7 +214,6 @@
         document.getElementById(id).style.display = id === section ? 'block' : 'none';
       });
 
-      // ✅ Show round controls only for host
       const roundControls = document.getElementById('roundControls');
       if (section === 'lobby') {
         roundControls.style.display = isHost ? 'block' : 'none';
