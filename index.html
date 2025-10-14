@@ -173,6 +173,10 @@
         if (timeLeft <= 0) {
           clearInterval(countdown);
 
+          // 🛑 Stop ticking sound
+          tick.pause();
+          tick.currentTime = 0;
+
           // 💥 Boom sound and animation
           const boom = document.getElementById('boomSound');
           boom.volume = 1;
@@ -198,6 +202,12 @@
       const input = document.getElementById('typingInput').value;
       if (input === sentence) {
         clearInterval(countdown);
+
+        // 🛑 Stop ticking sound
+        const tick = document.getElementById('clockSound');
+        tick.pause();
+        tick.currentTime = 0;
+
         const timeTaken = (Date.now() - startTime) / 1000;
         const score = Math.round(1000 / timeTaken);
         socket.emit('submitScore', { roomId, score });
